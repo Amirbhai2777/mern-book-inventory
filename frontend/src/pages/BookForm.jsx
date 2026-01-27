@@ -1,9 +1,16 @@
+
 import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createBook, getBook, updateBook } from '../api/books';
+
+import {
+  TextField,
+  Button,
+  Grid,
+  Typography
+} from '@mui/material';
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -17,68 +24,168 @@ export default function BookForm({ edit = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm({
-    resolver: zodResolver(schema)
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting }
+  } = useForm({
+    resolver: zodResolver(schema),
   });
 
+  // Load book data for edit
   useEffect(() => {
     if (edit && id) {
       (async () => {
-        const data = await getBook(id);
-        Object.entries({
-          title: data.title || '',
-          author: data.author || '',
-          publishedDate: data.publishedDate ? new Date(data.publishedDate).toISOString().slice(0,10) : '',
-          publisher: data.publisher || '',
-          description: data.description || ''
-        }).forEach(([k, v]) => setValue(k, v));
+        const res = await fetch(
+          `https://mern-book-inventory-2.onrender.com/api/books/${id}`
+        );
+        const data = await res.json();
+
+        setValue('title', data.title || '');
+        setValue('author', data.author || '');
+        setValue(
+          'publishedDate',
+          data.publishedDate
+            ? new Date(data.publishedDate).toISOString().slice(0, 10)
+            : ''
+        );
+        setValue('publisher', data.publisher || '');
+        setValue('description', data.description || '');
       })();
     }
   }, [edit, id, setValue]);
 
   const onSubmit = async (values) => {
     const payload = { ...values };
-    if (payload.publishedDate === '') delete payload.publishedDate; else if (payload.publishedDate) payload.publishedDate = new Date(payload.publishedDate).toISOString();
-    try {
-      if (edit && id) await updateBook(id, payload); else await createBook(payload);
-      navigate('/');
-    } catch (e) {
-      alert(e?.response?.data?.message || e.message);
+
+    if (!payload.publishedDate) {
+      delete payload.publishedDate;
+    } else {
+      payload.publishedDate = new Date(payload.publishedDate).toISOString();
     }
+
+    const API_BASE = 'https://mern-book-inventory-2.onrender.com/api';
+
+    const url = edit
+      ? `${API_BASE}/books/${id}`
+      : `${API_BASE}/books`;
+
+    const method = edit ? 'PUT' : 'POST';
+
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    navigate('/');
   };
 
   return (
     <div>
-      <h2 style={{marginTop:0}}>{edit ? 'Edit Book' : 'Add Book'}</h2>
-      <form onSubmit={handleSubmit(onSubmit)} style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,maxWidth:800}}>
-        <Field label="Title" error={errors.title?.message}><input {...register('title')} /></Field>
-        <Field label="Author" error={errors.author?.message}><input {...register('author')} /></Field>
-        <Field label="Publisher"><input {...register('publisher')} /></Field>
-        <Field label="Published Date"><input type="date" {...register('publishedDate')} /></Field>
-        <div style={{gridColumn:'1 / -1'}}>
-          <div style={{fontSize:12,color:'#6b7280'}}>Description</div>
-          <textarea rows={4} {...register('description')} style={{width:'100%'}} />
-        </div>
-        <div style={{gridColumn:'1 / -1',display:'flex',gap:8}}>
-          <button type="submit" disabled={isSubmitting} style={btnPrimary}>{isSubmitting ? 'Saving...' : 'Save'}</button>
-          <button type="button" onClick={()=>navigate('/')} style={btn}>Cancel</button>
-        </div>
+      <Typography variant="h5" gutterBottom>
+        {edit ? 'Edit Book' : 'Add Book'}
+      </Typography>
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <Grid container spacing={2}>
+          {/* Row 1 */}
+          <Grid size={6}>
+            <Controller
+              name="title"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+               placeholder='Title'
+                  fullWidth
+                  error={!!errors.title}
+                  helperText={errors.title?.message}
+                />
+              )}
+            />
+          </Grid>
+
+          <Grid size={6}>
+            <Controller
+              name="author"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                 placeholder='Auther'
+                  fullWidth
+                  error={!!errors.author}
+                  helperText={errors.author?.message}
+                />
+              )}
+            />
+          </Grid>
+
+          {/* Row 2 */}
+           <Grid size={6}>
+            <Controller
+              name="publisher"
+              control={control}
+              render={({ field }) => (
+                <TextField {...field} placeholder='Publisher' fullWidth />
+              )}
+            />
+          </Grid>
+
+          <Grid size={6}>
+            <Controller
+              name="publishedDate"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Published Date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+              )}
+            />
+          </Grid>
+
+          {/* Row 3 */}
+          <Grid size={12}>
+            <Controller
+              name="description"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  placeholder='Description'
+                  multiline
+                  rows={4}
+                  fullWidth
+                />
+              )}
+            />
+          </Grid>
+
+          {/* Buttons */}
+          <Grid item xs={12} display="flex" gap={2}>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Saving...' : 'Save'}
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={() => navigate('/')}
+            >
+              Cancel
+            </Button>
+          </Grid>
+        </Grid>
       </form>
     </div>
   );
 }
-
-function Field({ label, error, children }) {
-  return (
-    <label style={{display:'grid'}}>
-      <div style={{fontSize:12,color:'#6b7280'}}>{label}</div>
-      <div style={{display:'grid'}}>
-        {React.cloneElement(children, { style: { padding:'8px 10px', border:'1px solid #d1d5db', borderRadius:6 } })}
-        {error && <span style={{color:'#b91c1c', fontSize:12, marginTop:4}}>{error}</span>}
-      </div>
-    </label>
-  );
-}
-
-const btnPrimary = { padding:'8px 12px', border:'1px solid #2563eb', borderRadius:6, background:'#2563eb', color:'#fff' };
-const btn = { padding:'8px 12px', border:'1px solid #d1d5db', borderRadius:6, background:'#fff' };

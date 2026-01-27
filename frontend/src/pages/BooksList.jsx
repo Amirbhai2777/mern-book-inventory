@@ -1,11 +1,30 @@
 
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { deleteBook, listBooks } from '../api/books';
+
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Stack,
+  CircularProgress
+} from '@mui/material';
 
 export default function BooksList() {
-  const [data, setData] = useState({ items: [], total: 0, page: 1, limit: 10 });
+  const [data, setData] = useState({
+    items: [],
+    total: 0,
+    page: 1,
+    limit: 10
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [params, setParams] = useSearchParams();
@@ -13,94 +32,197 @@ export default function BooksList() {
   const page = Number(params.get('page') || 1);
   const q = params.get('q') || '';
 
+  // 🔹 LOAD BOOKS
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await listBooks({ page, q, limit: 10, sort: '-createdAt' });
-      setData(res);
+      const res = await fetch(
+        `https://mern-book-inventory-2.onrender.com/api/books?page=${page}&q=${q}&limit=10&sort=-createdAt`
+      );
+      const result = await res.json();
+      setData(result);
     } catch (e) {
-      setError(e?.response?.data?.message || e.message);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page, q]);
+  // 🔹 DELETE BOOK
+  const deleteBook = async (id) => {
+    await fetch(
+      `https://mern-book-inventory-2.onrender.com/api/books/${id}`,
+      { method: 'DELETE' }
+    );
+  };
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(data.total / data.limit)), [data]);
+  useEffect(() => {
+    load();
+  }, [page, q]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(data.total / data.limit)),
+    [data]
+  );
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0 }}>Books</h2>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            placeholder="Search by title/author/publisher"
-            value={q}
-            onChange={(e) => setParams(p => { p.set('q', e.target.value); p.set('page', '1'); return p; })}
-            style={{ padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, minWidth: 260 }}
-          />
-          <Link to="/books/new" style={{ padding: '8px 12px', background: '#2563eb', color: '#fff', borderRadius: 6 }}>Add Book</Link>
-        </div>
-      </div>
+    <Box>
+      {/* Header */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2}
+        justifyContent="space-between"
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        mb={2}
+      >
+        <Typography variant="h5">Books</Typography>
 
-      {error && <div style={{ marginTop: 12, color: '#b91c1c' }}>Error: {error}</div>}
-      {loading ? (
-        <div style={{ padding: 24 }}>Loading...</div>
-      ) : (
-        <div
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            marginTop: 12,
-            maxHeight: '73vh',
-            border: '1px solid #e5e7eb',
-            borderRadius: 8,
-            scrollbarWidth: 'none', 
-          }}
-        >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={th}>Title</th>
-                <th style={th}>Author</th>
-                <th style={th}>Publisher</th>
-                <th style={th}>Published</th>
-                <th style={th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map(b => (
-                <tr key={b._id}>
-                  <td style={td}><Link to={`/books/${b._id}`}>{b.title}</Link></td>
-                  <td style={td}>{b.author}</td>
-                  <td style={td}>{b.publisher || '-'}</td>
-                  <td style={td}>{b.publishedDate ? new Date(b.publishedDate).toLocaleDateString() : '-'}</td>
-                  <td style={td}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Link to={`/books/${b._id}/edit`} style={btn}>Edit</Link>
-                      <button
-                        onClick={async () => { if (confirm('Delete?')) { await deleteBook(b._id); load(); } }}
-                        style={btnDanger}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Stack direction="row" spacing={2}>
+          <TextField
+            size="small"
+            placeholder="Search by title / author / publisher"
+            value={q}
+            onChange={(e) =>
+              setParams((p) => {
+                p.set('q', e.target.value);
+                p.set('page', '1');
+                return p;
+              })
+            }
+          />
+
+          <Button
+            component={Link}
+            to="/books/new"
+            variant="contained"
+          >
+            Add Book
+          </Button>
+        </Stack>
+      </Stack>
+
+      {/* Error */}
+      {error && (
+        <Typography color="error" mb={2}>
+          Error: {error}
+        </Typography>
       )}
 
-    
-    </div>
+      {/* Loading */}
+      {loading ? (
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          height={200}
+        >
+          <CircularProgress />
+        </Box>
+      ) : (
+        <TableContainer
+          component={Paper}
+          sx={{
+            maxHeight: '73vh',
+            overflowY: 'auto',
+
+            /* 🔹 Hide scrollbar */
+            '&::-webkit-scrollbar': {
+              display: 'none'
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}
+        >
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow
+                sx={{
+                  bgcolor: '#e5e7eb' // light gray
+                }}
+              >
+                <TableCell >Title</TableCell>
+                <TableCell >Author</TableCell>
+                <TableCell >Publisher</TableCell>
+                <TableCell >Published</TableCell>
+                <TableCell >Actions</TableCell>
+              </TableRow>
+
+            </TableHead>
+
+            <TableBody>
+              {data.items.map((b, index) => (
+                <TableRow
+                  key={b._id}
+                  hover
+                  sx={{
+                    bgcolor: index % 2 === 0 ? '#f9fafb' : '#f3f4f6',
+                    '&:hover': {
+                      bgcolor: '#e0f2fe'
+                    }
+                  }}
+                >
+                  <TableCell>
+                    <Link to={`/books/${b._id}`}>
+                      {b.title}
+                    </Link>
+                  </TableCell>
+
+                  <TableCell>{b.author}</TableCell>
+
+                  <TableCell>
+                    {b.publisher || '-'}
+                  </TableCell>
+
+                  <TableCell>
+                    {b.publishedDate
+                      ? new Date(
+                        b.publishedDate
+                      ).toLocaleDateString()
+                      : '-'}
+                  </TableCell>
+
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        component={Link}
+                        to={`/books/${b._id}/edit`}
+                        variant="outlined"
+                      >
+                        Edit
+                      </Button>
+
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        onClick={async () => {
+                          if (window.confirm('Delete?')) {
+                            await deleteBook(b._id);
+                            load();
+                          }
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {data.items.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    No books found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Box>
   );
 }
 
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb', position: 'sticky', top: 0 };
-const td = { padding: '10px 12px', borderBottom: '1px solid #e5e7eb' };
-const btn = { padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff' };
-const btnDanger = { ...btn, borderColor: '#fecaca', background: '#fee2e2', color: '#b91c1c' };
